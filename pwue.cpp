@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <bit>
+#include <chrono>
 #include <cstdint>
 #include <future>
 #include <iostream>
@@ -293,6 +294,7 @@ std::pair<uint64_t, uint64_t> get_mu_interval(size_t n)
 
 int main()
 {
+    std::cout << "n: ";
     size_t n;
     std::cin >> n;
     if (n < 4)
@@ -302,6 +304,7 @@ int main()
     }
 
     auto const [I, J] = get_mu_interval(n);
+    auto const start_time = std::chrono::system_clock::now();
 
     uint8_t *a = (uint8_t *)malloc(factorial(std::min<size_t>(n - 1, 13))),
             *b = (uint8_t *)malloc(factorial(std::min<size_t>(n - 1, 12)));
@@ -353,8 +356,10 @@ int main()
     free(b);
     vec64_4 p = {0, 0, 0, 0};
     vec::ith_permutation(p, n, result.second, 0);
-    std::cout << "P(" << n << ") = " << result.first
-              << ", Beispiel mit A(p) = P(" << n << ") : ";
+    std::cout << "Laufzeit: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::system_clock::now() - start_time)).count()
+              << " ms\ngrößtes gefundenes A(p): " << result.first
+              << "\nBeispiel: ";
     for (size_t i = 0; i < n; ++i)
         std::cout << vec::get(p, 0, i) + 1 << ' ';
     std::cout << '\n';
