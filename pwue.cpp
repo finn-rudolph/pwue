@@ -247,9 +247,14 @@ std::pair<uint64_t, uint64_t> bf2(
                 a2[1] = std::min<uint64_t>(a2[1], y[v - l[1] - 1] + 2);
                 a2[2] = std::min<uint64_t>(a2[2], y[v - l[2] - 1] + 2);
                 a2[3] = std::min<uint64_t>(a2[3], y[v - l[3] - 1] + 2);
+
+                if (a1[0] < 8 && a1[1] < 8 && a1[2] < 8 && a1[3] < 8 &&
+                    a2[0] < 8 && a2[1] < 8 && a2[2] < 8 && a2[3] < 8)
+                    goto next_permutation_block;
             }
         }
 
+    next_permutation_block:
         for (size_t j = 0; j < 4; ++j)
         {
             if (a1[j] > result.first)
@@ -269,6 +274,23 @@ std::pair<uint64_t, uint64_t> bf2(
     return result;
 }
 
+std::pair<uint64_t, uint64_t> get_mu_interval(size_t n)
+{
+    std::cout << "Intervall an zu berechnenden Permutationen einschränken? [y/n] ";
+    char c;
+    std::cin >> c;
+    if (c == 'n')
+        return {0, factorial(n)};
+    uint64_t I, J;
+    std::cout << "Die Länge des Intervalls muss ein Vielfaches von "
+              << 8 * std::thread::hardware_concurrency() << " sein.\n"
+              << "Anfang (inklusiv): ";
+    std::cin >> I;
+    std::cout << "Ende (exklusiv): ";
+    std::cin >> J;
+    return {I, J};
+}
+
 int main()
 {
     size_t n;
@@ -278,6 +300,8 @@ int main()
         std::cout << "Funktioniert nur für n >= 4...\n";
         return 0;
     }
+
+    auto const [I, J] = get_mu_interval(n);
 
     uint8_t *a = (uint8_t *)malloc(factorial(std::min<size_t>(n - 1, 13))),
             *b = (uint8_t *)malloc(factorial(std::min<size_t>(n - 1, 12)));
@@ -313,14 +337,13 @@ int main()
         for (size_t t = 0; t < num_threads; ++t)
             fut.emplace_back(async(n <= 14 ? bf1 : bf2, n,
                                    (uint8_t *)((n & 1) && n != 15 ? b : a),
-                                   (factorial(n) / 2) * t / num_threads,
-                                   (factorial(n) / 2) * (t + 1) / num_threads));
+                                   I + ((J - I) / 2) * t / num_threads,
+                                   I + ((J - I) / 2) * (t + 1) / num_threads));
     }
     else
     {
         fut.emplace_back(async(n <= 14 ? bf1 : bf2, n,
-                               (uint8_t *)((n & 1) && n != 15 ? b : a),
-                               0, factorial(n) / 2));
+                               (uint8_t *)((n & 1) && n != 15 ? b : a), I, I + (J - I) / 2));
     }
 
     for (auto &f : fut) // Finde das maximale A(p) aller Threads.
