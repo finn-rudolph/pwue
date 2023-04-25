@@ -281,9 +281,10 @@ std::pair<uint64_t, uint64_t> get_mu_interval(size_t n)
     char c;
     std::cin >> c;
     if (c == 'n')
-        return {0, factorial(n)};
+        return {0, factorial(n) / 2};
     uint64_t I, J;
-    std::cout << "Die Länge des Intervalls muss ein Vielfaches von "
+    std::cout << "Das Intervall muss Teil von [0, n! / 2) = [0, " << factorial(n) / 2 << ") sein.\n"
+              << "Die Länge des Intervalls muss ein Vielfaches von "
               << 8 * std::thread::hardware_concurrency() << " sein.\n"
               << "Anfang (inklusiv): ";
     std::cin >> I;
@@ -340,13 +341,13 @@ int main()
         for (size_t t = 0; t < num_threads; ++t)
             fut.emplace_back(async(n <= 14 ? bf1 : bf2, n,
                                    (uint8_t *)((n & 1) && n != 15 ? b : a),
-                                   I + ((J - I) / 2) * t / num_threads,
-                                   I + ((J - I) / 2) * (t + 1) / num_threads));
+                                   I + (J - I) * t / num_threads,
+                                   I + (J - I) * (t + 1) / num_threads));
     }
     else
     {
         fut.emplace_back(async(n <= 14 ? bf1 : bf2, n,
-                               (uint8_t *)((n & 1) && n != 15 ? b : a), I, I + (J - I) / 2));
+                               (uint8_t *)((n & 1) && n != 15 ? b : a), I, J));
     }
 
     for (auto &f : fut) // Finde das maximale A(p) aller Threads.
