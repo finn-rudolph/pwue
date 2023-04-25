@@ -255,7 +255,6 @@ std::pair<uint64_t, uint64_t> bf2(
             }
         }
 
-    next_permutation_block:
         for (size_t j = 0; j < 4; ++j)
         {
             if (a1[j] > result.first)
@@ -264,6 +263,7 @@ std::pair<uint64_t, uint64_t> bf2(
                 result = {a2[j], u - i - 1 - j};
         }
 
+    next_permutation_block:
         if (i + 4 < i2)
         {
             p[0] = p[3];
