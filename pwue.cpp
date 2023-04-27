@@ -263,7 +263,8 @@ std::pair<uint64_t, uint64_t> bf2(
             {
                 std::unique_lock lck(*mut);
                 for (size_t i = 0; i < n; ++i)
-                    std::cout << vec::get(p, j, i) + 1 << '\n';
+                    std::cout << vec::get(p, j, i) + 1 << ' ';
+                std::cout << std::endl;
             }
             if (a2[j] == 9)
             {
@@ -271,7 +272,8 @@ std::pair<uint64_t, uint64_t> bf2(
                 vec::ith_permutation(q, n, u - i - 1 - j, 0);
                 std::unique_lock lck(*mut);
                 for (size_t i = 0; i < n; ++i)
-                    std::cout << vec::get(q, 0, i) + 1 << '\n';
+                    std::cout << vec::get(q, 0, i) + 1 << ' ';
+                std::cout << std::endl;
             }
             if (a1[j] > result.first)
                 result = {a1[j], i + j};
