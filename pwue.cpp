@@ -3,7 +3,9 @@
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <fstream>
 #include <iostream>
+#include <shared_mutex>
 #include <thread>
 #include <vector>
 
@@ -46,7 +48,7 @@ namespace vec
                          (uint64_t)std::popcount(x[2]), (uint64_t)std::popcount(x[3])};
     }
 
-    vec64_4 mu(vec64_4 p, size_t n)
+    constexpr vec64_4 mu(vec64_4 p, size_t n) noexcept
     {
         vec64_4 mu = {0, 0, 0, 0};
         vec64_4 t = {0, 0, 0, 0}, n_vec = {n, n, n, n};
@@ -220,7 +222,7 @@ std::pair<uint64_t, uint64_t> bf1(
 
 // Gehe 2 Ebenen herunter.
 std::pair<uint64_t, uint64_t> bf2(
-    size_t n, uint8_t const *const y, size_t i1, size_t i2)
+    size_t n, uint8_t const *const y, size_t i1, size_t i2, std::shared_mutex *mut)
 {
     uint64_t const u = factorial(n), v = factorial(n - 2);
     std::pair<uint64_t, uint64_t> result = {0, 0};
@@ -249,14 +251,28 @@ std::pair<uint64_t, uint64_t> bf2(
                 a2[2] = std::min<uint64_t>(a2[2], y[v - l[2] - 1] + 2);
                 a2[3] = std::min<uint64_t>(a2[3], y[v - l[3] - 1] + 2);
 
-                if (a1[0] < 8 && a1[1] < 8 && a1[2] < 8 && a1[3] < 8 &&
-                    a2[0] < 8 && a2[1] < 8 && a2[2] < 8 && a2[3] < 8)
+                if (a1[0] < 9 && a1[1] < 9 && a1[2] < 9 && a1[3] < 9 &&
+                    a2[0] < 9 && a2[1] < 9 && a2[2] < 9 && a2[3] < 9)
                     goto next_permutation_block;
             }
         }
 
         for (size_t j = 0; j < 4; ++j)
         {
+            if (a1[j] == 9)
+            {
+                std::unique_lock lck(*mut);
+                for (size_t i = 0; i < n; ++i)
+                    std::cout << vec::get(p, j, i) + 1 << '\n';
+            }
+            if (a2[j] == 9)
+            {
+                vec64_4 q = {0, 0, 0, 0};
+                vec::ith_permutation(q, n, u - i - 1 - j, 0);
+                std::unique_lock lck(*mut);
+                for (size_t i = 0; i < n; ++i)
+                    std::cout << vec::get(q, 0, i) + 1 << '\n';
+            }
             if (a1[j] > result.first)
                 result = {a1[j], i + j};
             if (a2[j] > result.first)
@@ -282,15 +298,15 @@ std::pair<uint64_t, uint64_t> get_mu_interval(size_t n)
     std::cin >> c;
     if (c == 'n')
         return {0, factorial(n) / 2};
-    uint64_t I, J;
+    uint64_t mu_begin, mu_end;
     std::cout << "Das Intervall muss Teil von [0, n! / 2) = [0, " << factorial(n) / 2 << ") sein.\n"
               << "Die Länge des Intervalls muss ein Vielfaches von "
               << 8 * std::thread::hardware_concurrency() << " sein.\n"
               << "Anfang (inklusiv): ";
-    std::cin >> I;
+    std::cin >> mu_begin;
     std::cout << "Ende (exklusiv): ";
-    std::cin >> J;
-    return {I, J};
+    std::cin >> mu_end;
+    return {mu_begin, mu_end};
 }
 
 int main()
@@ -304,7 +320,7 @@ int main()
         return 0;
     }
 
-    auto const [I, J] = get_mu_interval(n);
+    auto const [mu_begin, mu_end] = get_mu_interval(n);
     auto const start_time = std::chrono::system_clock::now();
 
     uint8_t *a = (uint8_t *)malloc(factorial(std::min<size_t>(n - 1, 13))),
@@ -318,36 +334,41 @@ int main()
         if (!(factorial(k) % (num_threads * 8)))
         {
             for (size_t t = 0; t < num_threads; t++)
-                threads.emplace_back(dp, k, (uint8_t *)((k & 1) ? b : a),
-                                     (uint8_t *)((k & 1) ? a : b),
+                threads.emplace_back(dp, k, a, b,
                                      (factorial(k) / 2) * t / num_threads,
                                      (factorial(k) / 2) * (t + 1) / num_threads);
         }
         else
         {
-            dp(k, (uint8_t *)((k & 1) ? b : a), (uint8_t *)((k & 1) ? a : b),
-               0, factorial(k) / 2);
+            dp(k, (uint8_t *)a, b, 0, factorial(k) / 2);
         }
         for (std::thread &t : threads)
             t.join();
-        ((k & 1) ? a : b)[0] = 0;
+        std::swap(a, b);
+        a[0] = 0;
     }
 
     std::pair<uint64_t, uint64_t> result = {0, 0};
     std::vector<std::future<std::pair<uint64_t, uint64_t>>> fut;
+    std::shared_mutex mut;
 
-    if (!(factorial(n) % (num_threads * 8)))
+    if (n == 15)
     {
         for (size_t t = 0; t < num_threads; ++t)
-            fut.emplace_back(async(n <= 14 ? bf1 : bf2, n,
-                                   (uint8_t *)((n & 1) && n != 15 ? b : a),
-                                   I + (J - I) * t / num_threads,
-                                   I + (J - I) * (t + 1) / num_threads));
+            fut.emplace_back(async(bf2, n, a,
+                                   mu_begin + (mu_end - mu_begin) * t / num_threads,
+                                   mu_begin + (mu_end - mu_begin) * (t + 1) / num_threads, &mut));
+    }
+    else if (!((mu_end - mu_begin) % (num_threads * 4)))
+    {
+        for (size_t t = 0; t < num_threads; ++t)
+            fut.emplace_back(async(bf1, n, a,
+                                   mu_begin + (mu_end - mu_begin) * t / num_threads,
+                                   mu_begin + (mu_end - mu_begin) * (t + 1) / num_threads));
     }
     else
     {
-        fut.emplace_back(async(n <= 14 ? bf1 : bf2, n,
-                               (uint8_t *)((n & 1) && n != 15 ? b : a), I, J));
+        fut.emplace_back(async(bf1, n, a, mu_begin, mu_end));
     }
 
     for (auto &f : fut) // Finde das maximale A(p) aller Threads.
